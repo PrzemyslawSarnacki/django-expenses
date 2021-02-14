@@ -149,14 +149,40 @@ class SimpleSQLReport(Report):
             )
         )
 
-    def run(self) -> SafeString:
+    def create_file(self, results: typing.Iterable, engine: Engine) -> SafeString:
+        column_headers: (typing.List[str], typing.List[str]) = self.get_column_header_names(engine)
+        column_header_names, _ = column_headers
+
+        first_row, results = peek(self.preprocess_rows(results))
+
+        if not results:
+            return no_results_to_show()
+
+        if len(column_header_names) != len(first_row):
+            raise ValueError("Results do not match expected column headers")
+        
+
+        return mark_safe(
+            render_to_string(
+                "expenses/reports/report_basic_csv.txt",
+                {
+                    "results": results,
+                    "column_headers": column_header_names,
+                },
+                self.request,
+            )
+        )
+
+    def run(self, output_format) -> SafeString:
         engine: Engine = Engine.get_from_connection(connection)
         sql: str = self.get_query(self.query_type, engine)
 
         with connection.cursor() as cursor:
             results: typing.Iterable = self.query(cursor, sql)
-
-        return self.tabulate(results, engine)
+        if output_format == "csv":
+            return self.create_file(results, engine)
+        else:
+            return self.tabulate(results, engine)
 
 
 def format_yearmonth(yearmonth: str) -> str:
@@ -236,6 +262,16 @@ class MonthCategoryBreakdown(SimpleSQLReport):
         if self.query_type == "month_category":
             user_categories: typing.Iterable[Category] = Category.user_objects(self.request)
             names = [_("Month")] + [c.html_link() for c in user_categories] + [_("Total")]
+            return names, ["right"] * len(names)
+        elif self.query_type == "category":
+            return ([_("Category"), _("Total")], ["left", "right"])
+        elif self.query_type == "month":
+            return ([_("Month"), _("Total")], ["right", "right"])
+    
+    def get_column_header_names(self, engine: Engine) -> (typing.List[str], typing.List[str]):
+        if self.query_type == "month_category":
+            user_categories: typing.Iterable[Category] = Category.user_objects(self.request)
+            names = [_("Month")] + [c for c in user_categories] + [_("Total")]
             return names, ["right"] * len(names)
         elif self.query_type == "category":
             return ([_("Category"), _("Total")], ["left", "right"])
