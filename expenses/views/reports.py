@@ -86,10 +86,14 @@ def report_run(request, slug):
     report_class: typing.Type[Report] = AVAILABLE_REPORTS[slug]
     settings: typing.Dict[Option, typing.Any] = {}
 
-
     for opt in report_class.options:
         settings.update(get_settings_from_post_data(request, opt.options, opt))
 
+    report: Report = report_class(request, settings)
+    start_time = time.monotonic()
+    report_html = report.run()
+    end_time = time.monotonic()
+    report_csv = report.run_csv()
 
     postfields: typing.List[(str, str)] = []
     output_format = "html"
@@ -101,18 +105,10 @@ def report_run(request, slug):
 
     if output_format == "print":
         template = "expenses/report_run_print.html"
-        content_type="text/html"
     elif output_format == "csv":
-        template = "expenses/report_run_csv.csv"
-        content_type="text/csv"
+        return report_csv
     else:
         template = "expenses/report_run.html"
-        content_type="text/html"
-
-    report: Report = report_class(request, settings)
-    start_time = time.monotonic()
-    report_html = report.run(output_format)
-    end_time = time.monotonic()
 
     return render(
         request,
@@ -125,5 +121,4 @@ def report_run(request, slug):
             "time": end_time - start_time,
             "postfields": postfields,
         },
-        content_type
     )

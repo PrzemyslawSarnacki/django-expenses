@@ -1,2 +1,0 @@
-{% for col in column_headers %}{{ col }};{% endfor %}{% for row in results %}
-{% for col in row %}{{ col }};{% endfor %}{% endfor %}

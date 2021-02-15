@@ -42,9 +42,5 @@ nosetests.xml
 # Node
 node_modules
 
-DjangoExpenses/
 /ts/js
 .vscode
-db.sqlite3
-base.html
-manage.py

@@ -9,6 +9,7 @@ import decimal
 import itertools
 import urllib.parse
 import operator
+import csv
 
 import attr
 import datetime
@@ -18,6 +19,7 @@ import typing
 import django.http
 from babel.dates import format_skeleton
 from django.db import connection
+from django.http.response import HttpResponse
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.safestring import SafeString
@@ -118,14 +120,14 @@ class SimpleSQLReport(Report):
         cursor.execute(sql, sql_params)
         return cursor.fetchall()
 
-    def get_column_headers(self, engine: Engine) -> (typing.List[str], typing.List[str]):
+    def get_column_headers(self, engine: Engine, is_html=True) -> (typing.List[str], typing.List[str]):
         return self.column_headers
 
-    def preprocess_rows(self, results: typing.Iterable) -> typing.Iterable:
+    def preprocess_rows(self, results: typing.Iterable, is_html=True) -> typing.Iterable:
         return results
 
     def tabulate(self, results: typing.Iterable, engine: Engine) -> SafeString:
-        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(engine)
+        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(engine, False)
         column_header_names, column_alignment = column_headers
         column_headers_with_alignment = zip(*column_headers)
 
@@ -149,40 +151,43 @@ class SimpleSQLReport(Report):
             )
         )
 
-    def create_file(self, results: typing.Iterable, engine: Engine) -> SafeString:
-        column_headers: (typing.List[str], typing.List[str]) = self.get_column_header_names(engine)
+    def create_file(self, results: typing.Iterable, engine: Engine) -> HttpResponse:
+        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(engine, False)
         column_header_names, _ = column_headers
 
-        first_row, results = peek(self.preprocess_rows(results))
+        first_row, results = peek(self.preprocess_rows(results, False))
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="report.csv"'
+        response.write("\ufeff".encode("utf8"))
+        writer = csv.writer(response)
+        writer.writerow(column_header_names)
+
+        for row in results:
+            writer.writerow(row)
 
         if not results:
             return no_results_to_show()
 
         if len(column_header_names) != len(first_row):
             raise ValueError("Results do not match expected column headers")
-        
+        return response
 
-        return mark_safe(
-            render_to_string(
-                "expenses/reports/report_basic_csv.txt",
-                {
-                    "results": results,
-                    "column_headers": column_header_names,
-                },
-                self.request,
-            )
-        )
-
-    def run(self, output_format) -> SafeString:
+    def run_csv(self) -> HttpResponse:
         engine: Engine = Engine.get_from_connection(connection)
         sql: str = self.get_query(self.query_type, engine)
 
         with connection.cursor() as cursor:
             results: typing.Iterable = self.query(cursor, sql)
-        if output_format == "csv":
-            return self.create_file(results, engine)
-        else:
-            return self.tabulate(results, engine)
+        return self.create_file(results, engine)
+
+    def run(self) -> SafeString:
+        engine: Engine = Engine.get_from_connection(connection)
+        sql: str = self.get_query(self.query_type, engine)
+
+        with connection.cursor() as cursor:
+            results: typing.Iterable = self.query(cursor, sql)
+        return self.tabulate(results, engine)
 
 
 def format_yearmonth(yearmonth: str) -> str:
@@ -258,27 +263,20 @@ class MonthCategoryBreakdown(SimpleSQLReport):
         else:
             raise ValueError("Query type unknown")
 
-    def get_column_headers(self, engine: Engine) -> (typing.List[str], typing.List[str]):
+    def get_column_headers(self, engine: Engine, is_html=True) -> (typing.List[str], typing.List[str]):
         if self.query_type == "month_category":
             user_categories: typing.Iterable[Category] = Category.user_objects(self.request)
-            names = [_("Month")] + [c.html_link() for c in user_categories] + [_("Total")]
-            return names, ["right"] * len(names)
-        elif self.query_type == "category":
-            return ([_("Category"), _("Total")], ["left", "right"])
-        elif self.query_type == "month":
-            return ([_("Month"), _("Total")], ["right", "right"])
-    
-    def get_column_header_names(self, engine: Engine) -> (typing.List[str], typing.List[str]):
-        if self.query_type == "month_category":
-            user_categories: typing.Iterable[Category] = Category.user_objects(self.request)
-            names = [_("Month")] + [c for c in user_categories] + [_("Total")]
+            if is_html:
+                names = [_("Month")] + [c.html_link() for c in user_categories] + [_("Total")]
+            else:
+                names = [_("Month")] + [c for c in user_categories] + [_("Total")]
             return names, ["right"] * len(names)
         elif self.query_type == "category":
             return ([_("Category"), _("Total")], ["left", "right"])
         elif self.query_type == "month":
             return ([_("Month"), _("Total")], ["right", "right"])
 
-    def preprocess_rows(self, results: typing.Iterable) -> typing.Iterable:
+    def preprocess_rows(self, results: typing.Iterable, is_html=True) -> typing.Iterable:
         if self.query_type == "month_category":
             user_categories: typing.Iterable[Category] = Category.user_objects(self.request)
             user_category_ids: typing.Dict[int, int] = {}
@@ -339,12 +337,13 @@ class VendorStats(SimpleSQLReport):
         }
     }
 
-    def get_column_headers(self, engine: Engine) -> (typing.List[str], typing.List[str]):
+    def get_column_headers(self, engine: Engine, is_html=True) -> (typing.List[str], typing.List[str]):
         return [_("Vendor"), _("Count"), _("Sum"), _("Average")], ["left", "right", "right", "right"]
 
-    def preprocess_rows(self, results: typing.Iterable) -> typing.Iterable:
+    def preprocess_rows(self, results: typing.Iterable, is_html=True) -> typing.Iterable:
         total_count = 0
         total_amount = 0
+
         for vendor, count, amount, avg in results:
             url = (
                 reverse("expenses:search")
@@ -354,7 +353,10 @@ class VendorStats(SimpleSQLReport):
             vendor_link = format_html('<a href="{}">{}</a>', url, vendor)
             total_count += count
             total_amount += amount
-            yield vendor_link, count, format_money(amount), format_money(avg)
+            if is_html:
+                yield vendor_link, count, format_money(amount), format_money(avg)
+            else:
+                yield vendor, count, format_money(amount), format_money(avg)
 
         if total_count > 0:
             yield _("Grand Total"), total_count, format_money(total_amount), format_money(total_amount / total_count)
