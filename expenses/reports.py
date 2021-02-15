@@ -127,7 +127,7 @@ class SimpleSQLReport(Report):
         return results
 
     def tabulate(self, results: typing.Iterable, engine: Engine) -> SafeString:
-        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(engine, False)
+        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(engine)
         column_header_names, column_alignment = column_headers
         column_headers_with_alignment = zip(*column_headers)
 
