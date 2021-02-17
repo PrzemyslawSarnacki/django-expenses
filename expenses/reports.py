@@ -199,7 +199,7 @@ class SimpleSQLReport(Report):
         column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(
             engine, False
         )
-        column_header_names, _ = column_headers
+        column_header_names = column_headers[0]
 
         first_row, results = peek(self.preprocess_rows(results, False))
 
