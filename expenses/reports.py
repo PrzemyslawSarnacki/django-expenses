@@ -15,6 +15,7 @@ import attr
 import datetime
 import enum
 import typing
+from babel.numbers import format_decimal
 
 import django.http
 from babel.dates import format_skeleton
@@ -87,23 +88,23 @@ class ReportItemFormatter:
     def format_category(self, c: Category) -> str:
         return c
 
-    def format_link(self, vendor: str) -> str:
+    def format_vendor_link(self, vendor: str) -> str:
         return vendor
 
 
 class CsvFormatter(ReportItemFormatter):
-
-    """"Remove breaking space from formatted string"""
+    """"Subclass for csv items formatting"""
 
     def format_money(self, amount: typing.Union[int, float, decimal.Decimal]) -> str:
-        return format_money(amount).replace("\xa0", " ")
+        return format_decimal(amount)
 
 
 class HtmlFormatter(ReportItemFormatter):
+    """"Subclass for html items formatting"""
     def format_category(self, c: Category) -> str:
         return c.html_link()
 
-    def format_link(self, vendor: str) -> str:
+    def format_vendor_link(self, vendor: str) -> str:
         url = (
             reverse("expenses:search")
             + "?for=expenses&include=expenses&include=bills&category_all=true&q="
@@ -378,12 +379,7 @@ class VendorStats(SimpleSQLReport):
     }
 
     def get_column_headers(self, engine: Engine, is_html=True) -> (typing.List[str], typing.List[str]):
-        return [_("Vendor"), _("Count"), _("Sum"), _("Average")], [
-            "left",
-            "right",
-            "right",
-            "right",
-        ]
+        return [_("Vendor"), _("Count"), _("Sum"), _("Average")], ["left", "right", "right", "right"]
 
     def preprocess_rows(self, results: typing.Iterable, is_html=True) -> typing.Iterable:
         total_count = 0
@@ -391,7 +387,7 @@ class VendorStats(SimpleSQLReport):
         item_formatter = HtmlFormatter() if is_html else CsvFormatter()
 
         for vendor, count, amount, avg in results:
-            vendor_link = item_formatter.format_link(vendor)
+            vendor_link = item_formatter.format_vendor_link(vendor)
             total_count += count
             total_amount += amount
             yield vendor_link, count, item_formatter.format_money(amount), item_formatter.format_money(avg)
