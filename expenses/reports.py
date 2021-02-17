@@ -27,7 +27,7 @@ from django.utils.safestring import SafeString
 from django.utils.html import format_html, mark_safe
 from django.utils.translation import gettext_lazy as _
 from expenses.models import Category
-from expenses.utils import format_money, format_decimal, get_babel_locale, peek
+from expenses.utils import format_money, format_number, get_babel_locale, peek
 
 
 class Engine(enum.Enum):
