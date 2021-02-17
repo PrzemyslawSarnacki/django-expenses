@@ -158,20 +158,14 @@ class SimpleSQLReport(Report):
         cursor.execute(sql, sql_params)
         return cursor.fetchall()
 
-    def get_column_headers(
-        self, engine: Engine, is_html=True
-    ) -> (typing.List[str], typing.List[str]):
+    def get_column_headers(self, engine: Engine, is_html=True) -> (typing.List[str], typing.List[str]):
         return self.column_headers
 
-    def preprocess_rows(
-        self, results: typing.Iterable, is_html=True
-    ) -> typing.Iterable:
+    def preprocess_rows(self, results: typing.Iterable, is_html=True) -> typing.Iterable:
         return results
 
     def tabulate(self, results: typing.Iterable, engine: Engine) -> SafeString:
-        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(
-            engine
-        )
+        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(engine)
         column_header_names, column_alignment = column_headers
         column_headers_with_alignment = zip(*column_headers)
 
@@ -196,9 +190,7 @@ class SimpleSQLReport(Report):
         )
 
     def create_file(self, results: typing.Iterable, engine: Engine) -> HttpResponse:
-        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(
-            engine, False
-        )
+        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(engine, False)
         column_header_names = column_headers[0]
 
         first_row, results = peek(self.preprocess_rows(results, False))
@@ -241,9 +233,7 @@ def format_yearmonth(yearmonth: str) -> str:
     # Querying for yearmonth is easier (especially with sqlite3) and about the same speed,
     # even if we need to apply some more logic Python-side to make it look nice.
     year, month = map(int, yearmonth.split("-"))
-    return format_skeleton(
-        "yMMMM", datetime.date(year, month, 1), locale=get_babel_locale()
-    )
+    return format_skeleton("yMMMM", datetime.date(year, month, 1), locale=get_babel_locale())
 
 
 class MonthCategoryBreakdown(SimpleSQLReport):
@@ -311,33 +301,21 @@ class MonthCategoryBreakdown(SimpleSQLReport):
         else:
             raise ValueError("Query type unknown")
 
-    def get_column_headers(
-        self, engine: Engine, is_html=True
-    ) -> (typing.List[str], typing.List[str]):
+    def get_column_headers(self, engine: Engine, is_html=True) -> (typing.List[str], typing.List[str]):
         item_formatter = HtmlFormatter() if is_html else CsvFormatter()
         if self.query_type == "month_category":
-            user_categories: typing.Iterable[Category] = Category.user_objects(
-                self.request
-            )
-            names = (
-                [_("Month")]
-                + [item_formatter.format_category(c) for c in user_categories]
-                + [_("Total")]
-            )
+            user_categories: typing.Iterable[Category] = Category.user_objects(self.request)
+            names = [_("Month")] + [item_formatter.format_category(c) for c in user_categories] + [_("Total")]
             return names, ["right"] * len(names)
         elif self.query_type == "category":
             return ([_("Category"), _("Total")], ["left", "right"])
         elif self.query_type == "month":
             return ([_("Month"), _("Total")], ["right", "right"])
 
-    def preprocess_rows(
-        self, results: typing.Iterable, is_html=True
-    ) -> typing.Iterable:
+    def preprocess_rows(self, results: typing.Iterable, is_html=True) -> typing.Iterable:
         item_formatter = HtmlFormatter() if is_html else CsvFormatter()
         if self.query_type == "month_category":
-            user_categories: typing.Iterable[Category] = Category.user_objects(
-                self.request
-            )
+            user_categories: typing.Iterable[Category] = Category.user_objects(self.request)
             user_category_ids: typing.Dict[int, int] = {}
             cat_totals: typing.Dict[int, typing.Union[float, decimal.Decimal]] = {}
             for n, cat in enumerate(user_categories, 1):
@@ -345,23 +323,19 @@ class MonthCategoryBreakdown(SimpleSQLReport):
                 cat_totals[cat.pk] = 0
             cat_count = len(user_category_ids)
             for yearmonth, items in itertools.groupby(results, operator.itemgetter(0)):
-                row = [format_yearmonth(yearmonth)] + [
-                    item_formatter.format_money(0)
-                ] * cat_count
+                row = [format_yearmonth(yearmonth)] + [item_formatter.format_money(0)] * cat_count
                 row_total = 0
                 for _ym, category_id, value in items:
-                    row[user_category_ids[category_id]] = item_formatter.format_money(
-                        value
-                    )
+                    row[user_category_ids[category_id]] = item_formatter.format_money(value)
                     row_total += value
                     cat_totals[category_id] += value
                 row.append(item_formatter.format_money(row_total))
                 yield row
 
             cat_totals_values = list(cat_totals.values())
-            yield [_("Grand Total")] + [
-                item_formatter.format_money(i) for i in cat_totals_values
-            ] + [item_formatter.format_money(sum(cat_totals_values))]
+            yield [_("Grand Total")] + [item_formatter.format_money(i) for i in cat_totals_values] + [
+                item_formatter.format_money(sum(cat_totals_values))
+            ]
 
         elif self.query_type == "month":
             total = 0
@@ -372,9 +346,7 @@ class MonthCategoryBreakdown(SimpleSQLReport):
             yield _("Grand Total"), item_formatter.format_money(total)
         else:
             # category
-            user_categories: typing.Dict[int, Category] = {
-                c.pk: c for c in Category.user_objects(self.request)
-            }
+            user_categories: typing.Dict[int, Category] = {c.pk: c for c in Category.user_objects(self.request)}
             total = 0
             for category, value in results:
                 yield (
@@ -405,9 +377,7 @@ class VendorStats(SimpleSQLReport):
         }
     }
 
-    def get_column_headers(
-        self, engine: Engine, is_html=True
-    ) -> (typing.List[str], typing.List[str]):
+    def get_column_headers(self, engine: Engine, is_html=True) -> (typing.List[str], typing.List[str]):
         return [_("Vendor"), _("Count"), _("Sum"), _("Average")], [
             "left",
             "right",
@@ -415,9 +385,7 @@ class VendorStats(SimpleSQLReport):
             "right",
         ]
 
-    def preprocess_rows(
-        self, results: typing.Iterable, is_html=True
-    ) -> typing.Iterable:
+    def preprocess_rows(self, results: typing.Iterable, is_html=True) -> typing.Iterable:
         total_count = 0
         total_amount = 0
         item_formatter = HtmlFormatter() if is_html else CsvFormatter()
@@ -426,14 +394,12 @@ class VendorStats(SimpleSQLReport):
             vendor_link = item_formatter.format_link(vendor)
             total_count += count
             total_amount += amount
-            yield vendor_link, count, item_formatter.format_money(
-                amount
-            ), item_formatter.format_money(avg)
+            yield vendor_link, count, item_formatter.format_money(amount), item_formatter.format_money(avg)
 
         if total_count > 0:
-            yield _("Grand Total"), total_count, item_formatter.format_money(
-                total_amount
-            ), item_formatter.format_money(total_amount / total_count)
+            yield _("Grand Total"), total_count, item_formatter.format_money(total_amount), item_formatter.format_money(
+                total_amount / total_count
+            )
 
 
 class DailySpending(SimpleSQLReport):
@@ -556,7 +522,10 @@ class DailySpending(SimpleSQLReport):
 
         property_row = []
         timescale_row = []
-        timescale_headers: typing.Iterable[str]  = [f"Na dE = {days['expense_days']} dni", f"Na dA = {days['all_days']} dzień"]
+        timescale_headers: typing.Iterable[str] = [
+            f"Na dE = {days['expense_days']} dni",
+            f"Na dA = {days['all_days']} dzień",
+        ]
         for timescale in timescale_headers:
             timescale_row.append(timescale)
             property_row.append(_("Count"))
@@ -634,16 +603,14 @@ class DailySpending(SimpleSQLReport):
             ]
         else:
             cat_tables_headings = [
-                    f"{_('Category spending per expense-day dE =')} {days['expense_days']}",
-                    f"{_('Category spending per day dA =')} {days['all_days']}",
+                f"{_('Category spending per expense-day dE =')} {days['expense_days']}",
+                f"{_('Category spending per day dA =')} {days['all_days']}",
             ]
 
         cat_tables_contents = []
 
         # Just in case not all categories have expenses
-        cat_data_per_id = {
-            cat_id: (cat_count, cat_sum) for cat_id, cat_count, cat_sum in cat_data
-        }
+        cat_data_per_id = {cat_id: (cat_count, cat_sum) for cat_id, cat_count, cat_sum in cat_data}
         user_category_ids = [cat.pk for cat in user_categories]
 
         for day_count_name in days_names:
@@ -787,20 +754,14 @@ class ProductPriceHistory(SimpleSQLReport):
                 filter_options += " AND vendor ILIKE %s"
                 sql_params.append(vendor_fs)
         else:
-            product_fs = (
-                "%" + product.lower() + "%" if fuzzy_search else product.lower()
-            )
+            product_fs = "%" + product.lower() + "%" if fuzzy_search else product.lower()
             vendor_fs = "%" + vendor.lower() + "%" if fuzzy_search else vendor.lower()
 
             if product:
-                filter_options += " AND LOWER(product) {} %s".format(
-                    "LIKE" if fuzzy_search else "="
-                )
+                filter_options += " AND LOWER(product) {} %s".format("LIKE" if fuzzy_search else "=")
                 sql_params.append(product_fs)
             if vendor:
-                filter_options += " AND LOWER(vendor) {} %s".format(
-                    "LIKE" if fuzzy_search else "="
-                )
+                filter_options += " AND LOWER(vendor) {} %s".format("LIKE" if fuzzy_search else "=")
                 sql_params.append(vendor_fs)
 
         if partition_vendor and partition_product:
@@ -824,9 +785,7 @@ class ProductPriceHistory(SimpleSQLReport):
         return cursor.fetchall()
 
     def tabulate(self, results: typing.Iterable, engine: Engine) -> SafeString:
-        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(
-            engine
-        )
+        column_headers: (typing.List[str], typing.List[str]) = self.get_column_headers(engine)
         column_header_names, column_alignment = column_headers
         column_headers_with_alignment = list(zip(*column_headers))
 
@@ -840,12 +799,7 @@ class ProductPriceHistory(SimpleSQLReport):
         partition_product = self.settings.get(self.options[0][2], False)
         partition_vendor = self.settings.get(self.options[0][3], False)
 
-        if (
-            partition_vendor
-            and partition_product
-            and len(vendor_groups) > 1
-            and len(product_groups) > 1
-        ):
+        if partition_vendor and partition_product and len(vendor_groups) > 1 and len(product_groups) > 1:
             group_title = _("{1} — {0}")
         elif partition_vendor and len(vendor_groups) > 1:
             group_title = _("{0}")
@@ -877,9 +831,7 @@ class ProductPriceHistory(SimpleSQLReport):
                 results_grouped.append({"title": group_title.format(*row), "rows": []})
                 current_group = group
 
-            results_grouped[-1]["rows"].append(
-                {k: v for k, v in zip(self.column_names, row)}
-            )
+            results_grouped[-1]["rows"].append({k: v for k, v in zip(self.column_names, row)})
 
         return mark_safe(
             render_to_string(
@@ -900,6 +852,5 @@ def no_results_to_show():
 
 
 AVAILABLE_REPORTS: typing.Dict[str, typing.Type[Report]] = {
-    r.slug: r
-    for r in [MonthCategoryBreakdown, VendorStats, DailySpending, ProductPriceHistory]
+    r.slug: r for r in [MonthCategoryBreakdown, VendorStats, DailySpending, ProductPriceHistory]
 }
