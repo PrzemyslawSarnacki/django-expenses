@@ -124,12 +124,7 @@ class Report(metaclass=abc.ABCMeta):
 
     @classmethod
     def meta_to_dict(cls) -> typing.Dict[str, typing.Any]:
-        return {
-            "name": cls.name,
-            "slug": cls.slug,
-            "description": cls.description,
-            "options": cls.options,
-        }
+        return {"name": cls.name, "slug": cls.slug, "description": cls.description, "options": cls.optionstsst}
 
     def __init__(self, request, settings):
         self.request = request
