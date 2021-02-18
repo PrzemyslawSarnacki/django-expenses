@@ -15,7 +15,6 @@ import attr
 import datetime
 import enum
 import typing
-from babel.numbers import format_decimal
 
 import django.http
 from babel.dates import format_skeleton
@@ -96,11 +95,12 @@ class CsvFormatter(ReportItemFormatter):
     """"Subclass for csv items formatting"""
 
     def format_money(self, amount: typing.Union[int, float, decimal.Decimal]) -> str:
-        return format_decimal(amount)
+        return format_number(amount)
 
 
 class HtmlFormatter(ReportItemFormatter):
     """"Subclass for html items formatting"""
+
     def format_category(self, c: Category) -> str:
         return c.html_link()
 
@@ -589,13 +589,9 @@ class DailySpending(SimpleSQLReport):
         if is_html:
             cat_tables_headings = [
                 format_html(
-                    _("Category spending per expense-day (<var>d<sub>E</sub></var> = {})"),
-                    days["expense_days"],
+                    _("Category spending per expense-day (<var>d<sub>E</sub></var> = {})"), days["expense_days"]
                 ),
-                format_html(
-                    _("Category spending per day (<var>d<sub>A</sub></var> = {})"),
-                    days["all_days"],
-                ),
+                format_html(_("Category spending per day (<var>d<sub>A</sub></var> = {})"), days["all_days"]),
             ]
         else:
             cat_tables_headings = [
@@ -668,18 +664,8 @@ class ProductPriceHistory(SimpleSQLReport):
             [
                 TextFieldOption(_("Product name"), "product", False),
                 TextFieldOption(_("Vendor"), "vendor", False),
-                CheckOption(
-                    _("Separate history for each product name"),
-                    "partition_product",
-                    True,
-                    type="check",
-                ),
-                CheckOption(
-                    _("Separate history for each vendor"),
-                    "partition_vendor",
-                    True,
-                    type="check",
-                ),
+                CheckOption(_("Separate history for each product name"), "partition_product", True, type="check"),
+                CheckOption(_("Separate history for each vendor"), "partition_vendor", True, type="check"),
                 CheckOption(_("Fuzzy search"), "fuzzy_search", False, type="check"),
                 # TODO more filtering options
             ],
@@ -773,9 +759,7 @@ class ProductPriceHistory(SimpleSQLReport):
             order_clause = "date, vendor, product"
             partition_clause = "ORDER BY date, date_added, vendor, product"
         sql_full = sql.format(
-            filter_options=filter_options,
-            order_clause=order_clause,
-            partition_clause=partition_clause,
+            filter_options=filter_options, order_clause=order_clause, partition_clause=partition_clause
         )
         cursor.execute(sql_full, sql_params)
         return cursor.fetchall()
